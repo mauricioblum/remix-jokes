@@ -1,10 +1,18 @@
-import type { ActionFunction, LinksFunction } from 'remix';
+import { ActionFunction, Form, LinksFunction, MetaFunction } from 'remix';
 import { useActionData, Link, useSearchParams } from 'remix';
 import { db } from '~/utils/db.server';
+import { createUserSession, login, register } from '~/utils/session.server';
 import stylesUrl from '../styles/login.css';
 
 export let links: LinksFunction = () => {
   return [{ rel: 'stylesheet', href: stylesUrl }];
+};
+
+export let meta: MetaFunction = () => {
+  return {
+    title: 'Remix Jokes | Login',
+    description: 'Login to submit your own jokes to Remix Jokes!',
+  };
 };
 
 function validateUsername(username: unknown) {
@@ -56,10 +64,15 @@ export let action: ActionFunction = async ({ request }): Promise<Response | Acti
 
   switch (loginType) {
     case 'login': {
-      // login to get the user
-      // if there's no user, return the fields and a formError
-      // if there is a user, create their session and redirect to /jokes
-      return { fields, formError: 'Not implemented' };
+      let user = await login({ username, password });
+      console.log({ user });
+      if (!user) {
+        return {
+          fields,
+          formError: `Username/Password combination is incorrect`,
+        };
+      }
+      return createUserSession(user.id, redirectTo);
     }
     case 'register': {
       let userExists = await db.user.findFirst({
@@ -71,9 +84,14 @@ export let action: ActionFunction = async ({ request }): Promise<Response | Acti
           formError: `User with username ${username} already exists`,
         };
       }
-      // create the user
-      // create their session and redirect to /jokes
-      return { fields, formError: 'Not implemented' };
+      const user = await register({ username, password });
+      if (!user) {
+        return {
+          fields,
+          formError: `Something went wrong trying to create a new user.`,
+        };
+      }
+      return createUserSession(user.id, redirectTo);
     }
     default: {
       return { fields, formError: `Login type invalid` };
@@ -88,7 +106,7 @@ export default function Login() {
     <div className="container">
       <div className="content" data-light="">
         <h1>Login</h1>
-        <form
+        <Form
           method="post"
           aria-describedby={actionData?.formError ? 'form-error-message' : undefined}
         >
@@ -162,7 +180,7 @@ export default function Login() {
           <button type="submit" className="button">
             Submit
           </button>
-        </form>
+        </Form>
       </div>
       <div className="links">
         <ul>
